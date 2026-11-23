@@ -4,7 +4,9 @@ A small desktop app for downloading videos, and clips of videos, with
 [yt-dlp](https://github.com/yt-dlp/yt-dlp). Paste a link, pick a quality, download.
 
 <p align="center">
-  <img src="docs/screenshot.png" width="560" alt="Spool clipping a 2:30 section from a video: a timeline of frame previews with draggable handles, start and end times, and a finished download">
+  <img src="docs/screenshot-plain.png" width="420" alt="Spool's main window, empty: a link field with a Paste button, quality presets, the save folder, Clip a section and Whole playlist switches, and a Download button" valign="top">
+  &nbsp;
+  <img src="docs/screenshot.png" width="360" alt="Spool clipping a 2:30 section from a video: a timeline of frame previews with draggable handles, start and end times, and a finished download" valign="top">
 </p>
 
 - **Preview first:** title, channel, length and thumbnail appear as soon as you paste a link.
