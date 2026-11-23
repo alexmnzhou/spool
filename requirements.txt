@@ -1,0 +1,4 @@
+yt-dlp[default]   # the downloader itself; [default] also pulls yt-dlp-ejs for YouTube
+pywebview         # the window (uses Microsoft Edge WebView2 on Windows)
+psutil            # cancel/cleanup of ffmpeg processes
+pillow            # only for make_icon.py

@@ -1,0 +1,24 @@
+# Credentials: browser cookie exports contain live session tokens. Never commit.
+cookies.txt
+*cookies*.txt
+
+# Per-machine settings (local folder paths)
+settings.json
+
+# Local tooling
+.claude/
+__pycache__/
+*.pyc
+
+# Old UI and icon, kept locally as a fallback only
+main_classic.py
+icon_yoinktube.ico
+
+# Downloads, in case the save folder ever points here
+*.part
+*.mp4
+*.webm
+*.mkv
+*.m4a
+*.mp3
+*.opus

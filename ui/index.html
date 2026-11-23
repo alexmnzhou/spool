@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spool</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Icon sprite (Lucide-style, 24px, stroke) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+      <symbol id="i-clipboard" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+      <symbol id="i-folder-open" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+      <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/></symbol>
+      <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+      <symbol id="i-list" viewBox="0 0 24 24"><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/><path d="m16 12 5 3-5 3v-6Z"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3l14 9-14 9V3z"/></symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></symbol>
+      <symbol id="i-cookie" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></symbol>
+      <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M9.94 14.06 4 20"/><path d="m14 4 1.5 3.5L19 9l-3.5 1.5L14 14l-1.5-3.5L9 9l3.5-1.5Z"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 256 256" aria-hidden="true">
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ffab2e"/><stop offset="1" stop-color="#ea6c0c"/>
+            </linearGradient>
+            <mask id="logoHoles">
+              <rect width="256" height="256" fill="#fff"/>
+              <circle cx="128" cy="76" r="19"/><circle cx="173.7" cy="109.2" r="19"/>
+              <circle cx="156.2" cy="162.8" r="19"/><circle cx="99.8" cy="162.8" r="19"/>
+              <circle cx="82.3" cy="109.2" r="19"/><circle cx="128" cy="124" r="10"/>
+            </mask>
+          </defs>
+          <rect width="256" height="256" rx="58" fill="url(#logoGrad)"/>
+          <circle cx="128" cy="124" r="84" fill="#fff" mask="url(#logoHoles)"/>
+          <rect x="128" y="194" width="92" height="20" rx="5" fill="#fff"/>
+        </svg>
+        <span class="wordmark">Spool</span>
+      </div>
+      <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+        <svg class="ic"><use href="#i-sliders"/></svg>
+      </button>
+    </header>
+
+    <main class="main" id="main">
+      <!-- Link -->
+      <section class="url-wrap">
+        <div class="url-field" id="urlField">
+          <svg class="ic lead"><use href="#i-link"/></svg>
+          <input id="url" type="text" placeholder="Paste a video or playlist link" spellcheck="false" autocomplete="off">
+          <button class="icon-btn small" id="clearUrl" title="Clear" aria-label="Clear" hidden>
+            <svg class="ic"><use href="#i-x"/></svg>
+          </button>
+          <button class="paste-btn" id="pasteBtn">
+            <svg class="ic"><use href="#i-clipboard"/></svg>Paste
+          </button>
+        </div>
+        <p class="field-error" id="err-url"></p>
+      </section>
+
+      <!-- Preview -->
+      <section class="preview" id="preview" data-state="empty">
+        <div class="preview-card">
+          <div class="thumb" id="thumbBox">
+            <img id="thumb" alt="">
+            <span class="badge" id="durBadge"></span>
+          </div>
+          <div class="meta">
+            <h2 class="title" id="pvTitle"></h2>
+            <p class="channel" id="pvChannel"></p>
+            <p class="stats" id="pvStats"></p>
+          </div>
+        </div>
+        <div class="preview-error">
+          <svg class="ic"><use href="#i-alert"/></svg>
+          <div>
+            <p class="err-title">Couldn't read that link</p>
+            <p class="err-msg" id="pvError"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Options -->
+      <section class="card options">
+        <div class="opt-row">
+          <span class="opt-label">Quality</span>
+          <div class="segmented" id="format" role="radiogroup">
+            <button data-value="Best Quality" role="radio">Best</button>
+            <button data-value="1080p" role="radio">1080p</button>
+            <button data-value="720p" role="radio">720p</button>
+            <button data-value="480p" role="radio">480p</button>
+            <button data-value="Audio Only (MP3)" role="radio"><svg class="ic"><use href="#i-music"/></svg>MP3</button>
+          </div>
+        </div>
+
+        <div class="opt-row">
+          <span class="opt-label">Save to</span>
+          <button class="folder-btn" id="folderBtn" title="Choose folder">
+            <svg class="ic"><use href="#i-folder"/></svg>
+            <span class="folder-path" id="folderPath"></span>
+            <span class="folder-change">Change</span>
+          </button>
+        </div>
+        <p class="field-error inset" id="err-outdir"></p>
+
+        <div class="opt-row toggles">
+          <label class="switch" id="clipSwitch">
+            <input type="checkbox" id="clipToggle">
+            <span class="track"><span class="knob"></span></span>
+            <svg class="ic"><use href="#i-scissors"/></svg>Clip a section
+          </label>
+          <label class="switch" id="playlistSwitch">
+            <input type="checkbox" id="playlistToggle">
+            <span class="track"><span class="knob"></span></span>
+            <svg class="ic"><use href="#i-list"/></svg>Whole playlist
+          </label>
+        </div>
+
+        <!-- Clip -->
+        <div class="clip" id="clipPanel" hidden>
+          <div class="timeline" id="timeline">
+            <div class="filmstrip" id="filmstrip"></div>
+            <div class="shade" id="shadeL"></div>
+            <div class="shade" id="shadeR"></div>
+            <div class="range" id="range"></div>
+            <div class="handle" id="hStart" data-which="start" title="Drag to set the start"><span></span></div>
+            <div class="handle" id="hEnd" data-which="end" title="Drag to set the end"><span></span></div>
+            <div class="hover" id="hover">
+              <div class="hover-frame" id="hoverFrame"></div>
+              <span class="hover-time" id="hoverTime"></span>
+            </div>
+          </div>
+          <div class="ticks" id="ticks"><span id="tick0">0:00</span><span id="tickEnd"></span></div>
+
+          <div class="clip-row">
+            <label class="time-field">
+              <span>Start</span>
+              <input id="start" type="text" placeholder="e.g. 1:30" spellcheck="false" autocomplete="off">
+            </label>
+            <div class="clip-len" id="clipLen">
+              <svg class="ic"><use href="#i-scissors"/></svg><span id="clipLenText">—</span>
+            </div>
+            <label class="time-field">
+              <span>End</span>
+              <input id="end" type="text" placeholder="e.g. 4:15" spellcheck="false" autocomplete="off">
+            </label>
+          </div>
+          <p class="field-error center" id="err-start"></p>
+          <p class="field-error center" id="err-end"></p>
+
+          <label class="switch small">
+            <input type="checkbox" id="precise">
+            <span class="track"><span class="knob"></span></span>
+            Frame-exact cut <span class="hint">re-encodes, a few seconds slower</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Log -->
+      <details class="log" id="logBox">
+        <summary>
+          <svg class="ic"><use href="#i-terminal"/></svg>
+          Activity log
+          <span class="log-count" id="logCount"></span>
+          <svg class="ic chevron"><use href="#i-chevron"/></svg>
+        </summary>
+        <pre id="log"></pre>
+      </details>
+    </main>
+
+    <!-- Dock: status + primary action, always visible -->
+    <footer class="dock" id="dock" data-state="idle">
+      <div class="dock-status">
+        <div class="dock-running">
+          <div class="dock-line">
+            <span class="status" id="statusText">Starting…</span>
+            <span class="pct" id="pct"></span>
+          </div>
+          <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
+          <div class="dock-meta"><span id="detail"></span><span id="speed"></span><span id="eta"></span></div>
+        </div>
+        <div class="dock-result">
+          <span class="result-icon" id="resultIcon"><svg class="ic"><use href="#i-check"/></svg></span>
+          <div class="result-text">
+            <span class="result-title" id="resultTitle"></span>
+            <span class="result-sub" id="resultSub"></span>
+          </div>
+          <div class="result-actions" id="resultActions">
+            <button class="ghost-btn" id="openBtn"><svg class="ic"><use href="#i-play"/></svg>Open</button>
+            <button class="ghost-btn" id="revealBtn"><svg class="ic"><use href="#i-folder-open"/></svg>Show in folder</button>
+            <button class="ghost-btn" id="showLogBtn"><svg class="ic"><use href="#i-terminal"/></svg>Log</button>
+          </div>
+        </div>
+      </div>
+      <button class="primary" id="goBtn">
+        <span id="goLabel">Download</span>
+      </button>
+    </footer>
+
+    <!-- Settings drawer -->
+    <div class="scrim" id="scrim"></div>
+    <aside class="drawer" id="drawer" aria-label="Settings">
+      <div class="drawer-head">
+        <h3>Settings</h3>
+        <button class="icon-btn" id="closeDrawer" aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button>
+      </div>
+
+      <div class="drawer-section">
+        <p class="section-title"><svg class="ic"><use href="#i-cookie"/></svg>Cookies</p>
+        <p class="section-sub">Only needed for age-restricted or members-only videos. YouTube often refuses
+          downloads from logged-in sessions, so if one fails with cookies the app retries without them.</p>
+        <div class="segmented full" id="cookieSource">
+          <button data-value="None">None</button>
+          <button data-value="Browser">From browser</button>
+          <button data-value="File">cookies.txt</button>
+        </div>
+
+        <div class="cookie-opt" data-for="Browser">
+          <span class="opt-label">Browser</span>
+          <div class="select-wrap">
+            <select id="browser"></select>
+            <svg class="ic"><use href="#i-chevron"/></svg>
+          </div>
+        </div>
+        <div class="cookie-opt" data-for="File">
+          <span class="opt-label">File</span>
+          <button class="folder-btn" id="cookieFileBtn">
+            <svg class="ic"><use href="#i-cookie"/></svg>
+            <span class="folder-path" id="cookieFilePath">Choose a cookies.txt…</span>
+            <span class="folder-change">Browse</span>
+          </button>
+        </div>
+        <p class="field-error" id="err-cookiefile"></p>
+      </div>
+
+      <div class="drawer-section">
+        <p class="section-title"><svg class="ic"><use href="#i-sparkle"/></svg>About</p>
+        <p class="section-sub" id="about"></p>
+      </div>
+    </aside>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
