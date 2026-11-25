@@ -54,6 +54,15 @@ function looksLikeUrl(s) {
   return /^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/\S*)?$/i.test(s.trim());
 }
 
+// C:\..., \\server\..., Explorer's quoted "Copy as path", or file:///
+function looksLikePath(s) {
+  return /^"?([a-z]:[\\/]|\\\\|file:\/\/\/)/i.test(s.trim());
+}
+
+function isLocal() {
+  return state.info?.kind === "file";
+}
+
 function baseName(path) {
   return (path || "").split(/[\\/]/).pop();
 }
@@ -111,10 +120,11 @@ async function loadPreview(force = false) {
     state.previewUrl = ""; state.info = null;
     setDuration(null, []);
     $("preview").dataset.state = "empty";
+    updateClipAvailability();
     updateGoLabel();
     return;
   }
-  if (!looksLikeUrl(url)) return;
+  if (!looksLikeUrl(url) && !looksLikePath(url)) return;
   if (url === state.previewUrl && !force) return;
 
   const token = ++state.previewToken;
@@ -140,6 +150,7 @@ async function loadPreview(force = false) {
     $("pvError").textContent = res.error || "Unknown error";
     $("preview").dataset.state = "error";
     setDuration(null, []);
+    updateClipAvailability();
     updateGoLabel();
     return;
   }
@@ -164,6 +175,18 @@ function renderPreview(info) {
     badge.textContent = `${info.count} videos`;
     $("pvStats").textContent = "Playlist · downloads every video";
     setDuration(null, []);
+  } else if (info.kind === "file") {
+    // A file on disk: the "channel" line shows its folder, and clipping is the
+    // point of opening one, so the clip panel opens straight away. Timeline frames
+    // arrive a few seconds later as a "frames" event.
+    badge.textContent = fmtTime(info.duration);
+    $("pvChannel").title = info.channel;
+    $("pvStats").textContent = info.stats || "";
+    setDuration(info.duration, []);
+    if (info.duration && !$("clipToggle").checked) {
+      $("clipToggle").checked = true;
+      $("clipPanel").hidden = false;
+    }
   } else {
     if (info.is_live) { badge.textContent = "LIVE"; badge.classList.add("live"); }
     else badge.textContent = fmtTime(info.duration);
@@ -375,6 +398,7 @@ function updateClipAvailability() {
   const isPlaylist = state.info?.kind === "playlist";
   const isLive = !!state.info?.is_live;
   $("clipSwitch").classList.toggle("disabled", isPlaylist || isLive);
+  $("playlistSwitch").classList.toggle("disabled", isLocal());
   if ((isPlaylist || isLive) && $("clipToggle").checked) {
     $("clipToggle").checked = false;
     $("clipPanel").hidden = true;
@@ -387,8 +411,10 @@ function updateGoLabel() {
   if (state.running) return;
   const clip = $("clipToggle").checked;
   const audio = state.settings.format === "Audio Only (MP3)";
-  $("goLabel").textContent = clip ? (audio ? "Download clip as MP3" : "Download clip") :
-                             audio ? "Download MP3" : "Download";
+  // A local file isn't downloaded, just cut (or converted) into the Save-to folder.
+  const verb = isLocal() ? "Save" : "Download";
+  $("goLabel").textContent = clip ? (audio ? `${verb} clip as MP3` : `${verb} clip`) :
+                             audio ? (isLocal() ? "Save as MP3" : "Download MP3") : verb;
 }
 
 function setRunning(on) {
@@ -421,7 +447,7 @@ function showResult(p) {
     $("resultSub").textContent = p.path ? baseName(p.path) : "";
     $("resultSub").title = p.path || "";
   } else if (p.state === "error") {
-    $("resultTitle").textContent = "Download failed";
+    $("resultTitle").textContent = isLocal() ? "Couldn't save" : "Download failed";
     $("resultSub").textContent = p.message || "";
     $("resultSub").title = p.message || "";
   } else {
@@ -485,6 +511,18 @@ window.spool = {
         setRunning(false);
         showResult(p);
         break;
+      case "frames":
+        // Frames for a local file, sent once ffmpeg has grabbed them.
+        if (isLocal() && state.info.path === p.path) {
+          state.boards = [p.board];
+          $("timeline").classList.remove("no-frames");
+          renderFilmstrip();
+        }
+        break;
+      case "dropped":
+        // A file dropped on the window (main.py reads its real path).
+        if (!state.running) openLocal(p.path);
+        break;
     }
   },
 };
@@ -524,6 +562,14 @@ async function go() {
     return;
   }
   setRunning(true);
+}
+
+function openLocal(path) {
+  const url = $("url");
+  url.value = path;
+  setFieldError("url", "");
+  $("dock").dataset.state = "idle";
+  loadPreview(true);
 }
 
 // ------------------------------------------------------------ drawer --
@@ -581,6 +627,31 @@ async function init() {
     const text = (await api().paste() || "").trim();
     if (text) { url.value = text; setFieldError("url", ""); loadPreview(true); }
     url.focus();
+  });
+
+  $("openFileBtn").addEventListener("click", async () => {
+    if (state.running) return;
+    const p = await api().pick_video_file();
+    if (p) openLocal(p);
+  });
+
+  // Dropping a file: the page only needs to accept the drop and show where it
+  // lands. Its real path is read in Python (main.py) and comes back as "dropped".
+  let dragDepth = 0;
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+  document.addEventListener("dragenter", (e) => {
+    if (!hasFiles(e)) return;
+    dragDepth++; document.body.classList.add("dropping");
+  });
+  document.addEventListener("dragleave", (e) => {
+    if (!hasFiles(e)) return;
+    if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dropping"); }
+  });
+  document.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
+  document.addEventListener("drop", (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0; document.body.classList.remove("dropping");
   });
 
   bindTimeline();

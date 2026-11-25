@@ -11,6 +11,9 @@ A small desktop app for downloading videos, and clips of videos, with
 - **Clip any section:** drag handles on a timeline that shows real frames from the video, or
   type start/end times. On YouTube, Spool fetches only the part of the stream the clip
   needs, so a 20-second clip from a 3-hour video takes a few seconds rather than a full download.
+- **Clip files you already have:** click Open file (or drop a video on the window) to use the
+  same timeline on a file on disk. A plain cut copies the streams without re-encoding, so a few
+  minutes out of an hour-long recording takes about a second.
 - **Quality presets:** Best, 1080p, 720p, 480p, or MP3 audio.
 - **Copes with YouTube's quirks:** if YouTube refuses a download (HTTP 403), Spool retries
   without cookies, then via HLS, before giving up.
@@ -63,6 +66,7 @@ clipped quickly. Add `--seek-test` to time a real seek.
 | `ui/` | The interface: `index.html`, `style.css`, `app.js` |
 | `engine.py` | Downloading: retries, progress, cancel |
 | `clipper.py` | Fast clipping: reads the stream's index and fetches only the needed byte ranges |
+| `localfile.py` | Clipping files already on disk: ffprobe, timeline frames, the ffmpeg cut |
 | `diagnose.py` | Troubleshooting tool for a single link |
 | `make_icon.py` | Regenerates `icon.ico` |
 

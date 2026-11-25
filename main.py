@@ -16,6 +16,7 @@ from pathlib import Path
 import webview
 import yt_dlp.version
 
+import localfile
 from engine import BROWSERS, DEFAULT_COOKIES_FILE, FORMATS, Engine
 
 HERE = Path(__file__).resolve().parent
@@ -34,6 +35,7 @@ DEFAULT_SETTINGS = {
     "cookiefile": str(DEFAULT_COOKIES_FILE) if DEFAULT_COOKIES_FILE.exists() else "",
     "precise": False,
     "whole_playlist": False,
+    "file_dir": "",             # where the Open file dialog last was
 }
 
 
@@ -145,6 +147,21 @@ class Api:
             file_types=("Cookie files (*.txt)", "All files (*.*)"))
         return result[0] if result else None
 
+    def pick_video_file(self):
+        start = self._settings.get("file_dir") or ""
+        if not os.path.isdir(start):
+            videos = Path.home() / "Videos"
+            start = str(videos if videos.is_dir() else Path.home())
+        result = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, directory=start,
+            file_types=(f"Video files ({localfile.VIDEO_PATTERNS})",
+                        f"Audio files ({localfile.AUDIO_PATTERNS})",
+                        "All files (*.*)"))
+        if not result:
+            return None
+        self.save_settings({"file_dir": os.path.dirname(result[0])})
+        return result[0]
+
     def paste(self):
         try:
             return clipboard_text()
@@ -162,6 +179,26 @@ class Api:
             os.startfile(os.path.dirname(path))
 
 
+def watch_drops(window, api):
+    """Pass files dropped on the window to the page with their full path.
+
+    Browsers never expose a dropped file's real path to page JavaScript, but
+    pywebview fills in `pywebviewFullPath` for drop handlers registered from Python.
+    """
+    from webview.dom import DOMEventHandler
+
+    def on_drop(event):
+        files = (event.get("dataTransfer") or {}).get("files") or []
+        path = next((f.get("pywebviewFullPath") for f in files if f.get("pywebviewFullPath")), None)
+        if path:
+            api._emit("dropped", {"path": path})
+
+    try:
+        window.dom.document.events.drop += DOMEventHandler(on_drop, True, True)
+    except Exception:
+        pass        # Open file still works without drag and drop
+
+
 def main():
     api = Api()
     window = webview.create_window(
@@ -174,6 +211,7 @@ def main():
     )
     api._window = window
     window.events.shown += lambda: style_title_bar(window)
+    window.events.loaded += lambda: watch_drops(window, api)
     window.events.closing += api._engine.shutdown      # never orphan ffmpeg
     webview.start(icon=str(ICON), debug=bool(os.environ.get("SPOOL_DEBUG")))
 

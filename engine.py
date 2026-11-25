@@ -8,8 +8,11 @@ idea what's drawing it and never touches UI state from its worker threads:
     progress  {"fraction": float | None, "speed": str, "eta": str, "detail": str}
               (fraction None = working, amount unknown)
     finished  {"state": "done" | "error" | "cancelled", "message": str, "path": str | None}
+    frames    {"path": str, "board": dict}   (timeline frames for a local file, sent
+              after its preview because grabbing them takes a few seconds)
 """
 import os
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -18,6 +21,7 @@ import yt_dlp
 import yt_dlp.utils
 
 import clipper
+import localfile
 
 FORMATS = {
     "Best Quality":     {"format": "bestvideo+bestaudio/best"},
@@ -164,6 +168,7 @@ class Engine:
         self._last_progress = 0.0
         self._output: str | None = None
         self._partials: set[str] = set()     # .part files yt-dlp is writing
+        self._frames_gen = 0                 # bumps per local preview; stale frame jobs stop
 
     # ------------------------------------------------------------ public --
 
@@ -178,7 +183,8 @@ class Engine:
 
         url = (raw.get("url") or "").strip()
         if not url:
-            return {"ok": False, "error": "Paste a link first.", "field": "url"}
+            return {"ok": False, "error": "Paste a link or open a video file first.", "field": "url"}
+        local = localfile.as_path(url)
         outdir = (raw.get("outdir") or "").strip()
         if not outdir:
             return {"ok": False, "error": "Choose a folder to save into.", "field": "outdir"}
@@ -196,11 +202,12 @@ class Engine:
 
         fmt_name = raw.get("format") if raw.get("format") in FORMATS else "Best Quality"
         cookie_source = raw.get("cookie_source") if raw.get("cookie_source") in ("None", "Browser", "File") else "None"
-        if cookie_source == "File" and not (raw.get("cookiefile") or "").strip():
+        if not local and cookie_source == "File" and not (raw.get("cookiefile") or "").strip():
             return {"ok": False, "error": "Choose a cookies.txt file, or set cookies to None.", "field": "cookiefile"}
 
         cfg = {
             "url": url,
+            "local": local,
             "outdir": outdir,
             "start_time": start_time,
             "end_time": end_time,
@@ -236,6 +243,9 @@ class Engine:
     def preview(self, raw: dict) -> dict:
         """Title, thumbnail, duration and storyboards for the preview card. Blocking."""
         url = (raw.get("url") or "").strip()
+        local = localfile.as_path(url)
+        if local:
+            return self._preview_local(local)
         opts = {
             "quiet": True,
             "no_warnings": True,
@@ -313,6 +323,8 @@ class Engine:
         self._output = None
         self._partials.clear()
         self._log(f"Starting: {cfg['url']}")
+        if cfg.get("local"):
+            return self._do_local(cfg)
         # On a 403, step down this ladder. YouTube often refuses stream requests from
         # logged-in (cookie) sessions, and lately refuses direct DASH URLs at random
         # while still serving HLS. Cookies still matter for age-gated videos, so
@@ -542,6 +554,143 @@ class Engine:
             name = {"Merger": "Merging audio and video", "FFmpegExtractAudio": "Converting to MP3",
                     "MoveFiles": "Finishing up"}.get(d.get("postprocessor", ""), "Processing")
             self._status(f"{name}…")
+
+    # -------------------------------------------------------- local files --
+
+    def _preview_local(self, path: str) -> dict:
+        try:
+            info = localfile.probe(path)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)[:300]}
+        duration = info["duration"]
+        self._frames_gen += 1
+        gen = self._frames_gen
+        thumb = None
+        if info["has_video"]:
+            thumb = localfile.frame(path, min(duration * 0.1, 60) if duration else 0, 320, 180)
+            if duration:
+                threading.Thread(target=self._local_frames, args=(path, duration, gen), daemon=True).start()
+        try:
+            size = _fmt_bytes(os.path.getsize(path))
+        except OSError:
+            size = ""
+        stats = [f"{info['width']}×{info['height']}" if info["has_video"] else "Audio only", size]
+        return {
+            "ok": True, "kind": "file", "path": path,
+            "title": Path(path).name,
+            "channel": str(Path(path).parent),
+            "duration": duration,
+            "stats": " · ".join(s for s in stats if s),
+            "thumbnail": thumb,
+            "is_live": False,
+            "storyboards": [],
+        }
+
+    def _local_frames(self, path: str, duration: float, gen: int):
+        board = localfile.storyboard(path, duration, stopped=lambda: gen != self._frames_gen)
+        if board and gen == self._frames_gen:
+            self._emit("frames", {"path": path, "board": board})
+
+    def _do_local(self, cfg: dict):
+        try:
+            out = self._trim_local(cfg)
+            self._output = str(out)
+            self._progress(1.0)
+            self._finish("done", "Saved", self._output)
+        except clipper.ClipCancelled:
+            self._finish("cancelled", "Cancelled")
+        except Exception as exc:
+            msg = str(exc).strip()
+            self._log(f"Error: {msg}")
+            self._finish("error", msg.splitlines()[0][:300] if msg else "Couldn't save the clip")
+        finally:
+            self._active.clear()
+
+    def _trim_local(self, cfg: dict) -> Path:
+        src = cfg["local"]
+        info = localfile.probe(src)
+        total = info["duration"]
+        start = cfg["start_time"] or 0.0
+        end = cfg["end_time"]
+        if total:
+            if start >= total:
+                raise ValueError(f"The video is only {_fmt_eta(total)} long.")
+            if end is not None:
+                end = min(end, total)
+        span = (end if end is not None else total or 0) - start
+        clipping = cfg["start_time"] is not None or cfg["end_time"] is not None
+
+        audio_only = cfg["fmt_name"] in AUDIO_ONLY_FORMATS
+        if audio_only and not info["has_audio"]:
+            raise ValueError("This file has no audio to save as MP3.")
+        cap = {"1080p": 1080, "720p": 720, "480p": 480}.get(cfg["fmt_name"])
+        short_side = min(info["width"] or 0, info["height"] or 0)
+        scale = bool(cap and info["has_video"] and short_side > cap)
+        reencode = not audio_only and info["has_video"] and (cfg["precise"] or scale)
+
+        src_path = Path(src)
+        if audio_only:
+            ext = ".mp3"
+        elif reencode:
+            ext = ".mp4"
+        else:
+            ext = src_path.suffix.lower() if src_path.suffix.lower() in localfile.COPY_EXTS else ".mkv"
+        name = src_path.stem + (clip_suffix(start, cfg["end_time"]) if clipping else "") + \
+            (f" ({cap}p)" if scale else "")
+        outdir = Path(cfg["outdir"])
+        outdir.mkdir(parents=True, exist_ok=True)
+        out = clipper._unique(outdir / f"{name}{ext}")
+        tmp = out.with_name(f"{out.stem}.part{out.suffix}")
+
+        what = ("Converting to MP3" if audio_only else
+                f"Re-encoding to {cap}p" if scale else
+                "Re-encoding for an exact cut" if reencode else
+                "Copying without re-encoding")
+        span_txt = f"{_fmt_eta(start)}–{_fmt_eta(start + span)}" if clipping else "whole file"
+        self._log(f"  {what} ({span_txt})…")
+        self._status(f"{what}…")
+
+        args = localfile.trim_command(src, str(tmp), start, span if clipping else None,
+                                      audio_only=audio_only, reencode=reencode,
+                                      cap=cap if scale else None, info=info)
+        try:
+            proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                    encoding="utf-8", errors="replace",
+                                    creationflags=localfile.NO_WINDOW)
+        except FileNotFoundError:
+            raise RuntimeError("ffmpeg wasn't found. Install it and put it on your PATH.")
+        errors: list[str] = []
+        threading.Thread(target=lambda: errors.extend(proc.stderr), daemon=True).start()
+
+        speed = ""
+        try:
+            for line in proc.stdout:
+                if self._cancel_event.is_set():
+                    proc.kill()
+                    break
+                key, _, value = line.strip().partition("=")
+                if key == "speed":
+                    speed = value if value not in ("N/A", "") else ""
+                elif key == "out_time_us" and span > 0 and value.lstrip("-").isdigit():
+                    done = max(0, int(value)) / 1e6
+                    self._progress(min(done / span, 0.999), speed=speed,
+                                   detail=f"{_fmt_eta(done)} of {_fmt_eta(span)}")
+            proc.wait()
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+
+        if self._cancel_event.is_set():
+            tmp.unlink(missing_ok=True)
+            raise clipper.ClipCancelled()
+        if proc.returncode != 0:
+            tmp.unlink(missing_ok=True)
+            detail = "".join(errors).strip().splitlines()
+            raise RuntimeError(f"ffmpeg failed: {detail[-1] if detail else f'exit code {proc.returncode}'}")
+        os.replace(tmp, out)
+        self._log(f"Done! {out.name}")
+        return out
 
     # ------------------------------------------------------------ ffmpeg --
 

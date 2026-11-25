@@ -188,6 +188,13 @@ kbd {
   transition: background 0.15s;
 }
 .paste-btn:hover { background: var(--surface-3); }
+.paste-btn + .paste-btn { margin-left: -4px; }
+
+/* A file dragged over the window lights up the link field, where it lands. */
+body.dropping .url-field {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(245, 154, 35, 0.18);
+}
 
 .field-error {
   margin: 6px 4px 0;
@@ -246,7 +253,7 @@ kbd {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   user-select: text;
 }
-.channel { margin: 0 0 3px; color: var(--text-2); font-weight: 500; }
+.channel { margin: 0 0 3px; color: var(--text-2); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stats { margin: 0; color: var(--text-3); font-size: 13px; }
 
 .preview[data-state="loading"] .thumb,
